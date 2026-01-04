@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>For Savannah 🦈</title>
+  <style>
+    :root { --bg: #05070a; }
+    html, body { height: 100%; margin: 0; background: var(--bg); font-family: -apple-system, system-ui, Segoe UI, Roboto, Arial; }
+    .wrap { height: 100%; display: grid; place-items: center; padding: 18px; box-sizing: border-box; }
+    .card {
+      width: min(92vw, 520px);
+      aspect-ratio: 1 / 1;
+      border-radius: 22px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 18px 60px rgba(0,0,0,.55);
+      border: 2px solid rgba(255,255,255,.12);
+      background: #000;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    canvas { width: 100%; height: 100%; display: block; }
+    .hint {
+      position: absolute; inset: 0;
+      display: grid; place-items: center;
+      pointer-events: none;
+      text-align: center;
+      padding: 22px;
+      color: rgba(255,255,255,.92);
+      text-shadow: 0 2px 10px rgba(0,0,0,.6);
+      transition: opacity .35s ease;
+    }
+    .hint .title { font-size: 22px; font-weight: 800; letter-spacing: .5px; }
+    .hint .sub { margin-top: 8px; font-size: 14px; opacity: .9; }
+    .badge {
+      margin-top: 14px;
+      display: inline-block;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.16);
+      font-size: 13px;
+    }
+    .footer {
+      margin-top: 14px;
+      color: rgba(255,255,255,.75);
+      font-size: 13px;
+      text-align: center;
+      max-width: 520px;
+      line-height: 1.35;
+    }
+    .footer b { color: rgba(255,220,235,.95); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="card">
+      <canvas id="c"></canvas>
+      <div class="hint" id="hint">
+        <div>
+          <div class="title">Savannah, happy 26th 🦈</div>
+          <div class="sub">Tap + drag to reveal your surprise.</div>
+          <div class="badge">EU sizing boss fight: defeated (EU 37.5)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      From <b>William</b> — the boots are still in the mail, but the love already arrived. ❤
+    </div>
+  </div>
+
+  <script>
+    const IMAGE_URL = "tabis.jpg";
+    const BRUSH_RADIUS = 28;
+    const FADE_HINT_AFTER = 6;
+    const COMPLETE_AT = 0.60;
+
+    const canvas = document.getElementById("c");
+    const card = document.getElementById("card");
+    const hint = document.getElementById("hint");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+    let w, h, dpr;
+    let overlay, overlayCtx;
+    let img = new Image();
+    img.crossOrigin = "anonymous";
+
+    let drawing = false;
+    let strokes = 0;
+    let done = false;
+
+    function resize() {
+      const rect = card.getBoundingClientRect();
+      dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+      w = Math.floor(rect.width * dpr);
+      h = Math.floor(rect.height * dpr);
+      canvas.width = w; canvas.height = h;
+
+      overlay = document.createElement("canvas");
+      overlay.width = w; overlay.height = h;
+      overlayCtx = overlay.getContext("2d");
+      overlayCtx.fillStyle = "#000";
+      overlayCtx.fillRect(0, 0, w, h);
+
+      draw();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+
+      if (img.complete && img.naturalWidth) {
+        const iw = img.naturalWidth, ih = img.naturalHeight;
+        const scale = Math.max(w / iw, h / ih);
+        const dw = iw * scale, dh = ih * scale;
+        const dx = (w - dw) / 2, dy = (h - dh) / 2;
+        ctx.drawImage(img, dx, dy, dw, dh);
+      } else {
+        ctx.fillStyle = "#0b0f16";
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      ctx.drawImage(overlay, 0, 0);
+    }
+
+    function scratch(x, y) {
+      overlayCtx.save();
+      overlayCtx.globalCompositeOperation = "destination-out";
+      overlayCtx.beginPath();
+      overlayCtx.arc(x, y, BRUSH_RADIUS * dpr, 0, Math.PI * 2);
+      overlayCtx.fill();
+      overlayCtx.restore();
+      draw();
+    }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
+      const clientY = (e.touches ? e.touches[0].clientY : e.clientY);
+      const x = (clientX - rect.left) * dpr;
+      const y = (clientY - rect.top) * dpr;
+      return { x, y };
+    }
+
+    function estimateRevealed() {
+      const sample = overlayCtx.getImageData(0, 0, w, h).data;
+      let transparent = 0;
+      const step = 16;
+      for (let i = 3; i < sample.length; i += 4 * step) {
+        if (sample[i] === 0) transparent++;
+      }
+      const total = sample.length / (4 * step);
+      return transparent / total;
+    }
+
+    function onStart(e) {
+      e.preventDefault();
+      drawing = true;
+      const { x, y } = getPos(e);
+      scratch(x, y);
+      strokes++;
+      if (strokes >= FADE_HINT_AFTER) hint.style.opacity = "0";
+    }
+
+    function onMove(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      const { x, y } = getPos(e);
+      scratch(x, y);
+
+      if (!done && strokes % 8 === 0) {
+        const pct = estimateRevealed();
+        if (pct >= COMPLETE_AT) {
+          done = true;
+          hint.innerHTML = `
+            <div>
+              <div class="title">REVEAL COMPLETE ✨</div>
+              <div class="sub">EU sizing was a nightmare… but I found the rare <b>EU 37.5</b> (true US women’s 8).</div>
+              <div class="badge">Happy 26th, Savannah 🦈❤</div>
+            </div>`;
+          hint.style.opacity = "1";
+        }
+      }
+    }
+
+    function onEnd() { drawing = false; }
+
+    img.onload = () => { resize(); };
+    img.src = IMAGE_URL;
+
+    window.addEventListener("resize", resize);
+
+    canvas.addEventListener("mousedown", onStart);
+    canvas.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onEnd);
+
+    canvas.addEventListener("touchstart", onStart, { passive: false });
+    canvas.addEventListener("touchmove", onMove, { passive: false });
+    canvas.addEventListener("touchend", onEnd);
+  </script>
+</body>
+</html>
